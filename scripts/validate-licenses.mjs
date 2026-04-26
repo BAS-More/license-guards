@@ -23,6 +23,26 @@ const blocked = [];
 const flagged = [];
 const unknown = [];
 
+// Split SPDX compound expressions like "(MIT OR WTFPL)" or "Apache-2.0 AND BSD-3-Clause".
+// Returns array of individual licenses.
+function splitSpdx(expr) {
+  return String(expr)
+    .replace(/^\(|\)$/g, '')
+    .split(/\s+(?:OR|AND)\s+/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function isAllowed(lic) {
+  if (allow.has(lic)) return true;
+  // Wildcard support: "MIT*" matches "MIT-0", "MIT License" etc.
+  for (const a of allow) {
+    if (a.endsWith('*') && lic.startsWith(a.slice(0, -1))) return true;
+    if (lic === a) return true;
+  }
+  return false;
+}
+
 for (const [pkgVer, info] of Object.entries(lc)) {
   const licenses = Array.isArray(info.licenses) ? info.licenses : [info.licenses || 'UNKNOWN'];
   const pkgName = pkgVer.replace(/@[^@]+$/, '');
@@ -32,15 +52,39 @@ for (const [pkgVer, info] of Object.entries(lc)) {
 
     if (exceptions[pkgName] || exceptions[pkgVer]) continue;
 
-    if (block.has(norm)) {
-      blocked.push({ pkg: pkgVer, license: norm, repo: info.repository, path: info.path });
+    // Compound expression handling: if expression contains OR, it's allowed if ANY
+    // sub-license is allowed. If expression contains only AND, all must be allowed.
+    const isCompoundOr = /\bOR\b/i.test(norm);
+    const subs = splitSpdx(norm);
+
+    if (isCompoundOr) {
+      // OR: pass if ANY sub-license is allowed and none are blocked
+      const anyAllowed = subs.some(isAllowed);
+      const anyBlocked = subs.some((s) => block.has(s));
+      if (anyBlocked && !anyAllowed) {
+        blocked.push({ pkg: pkgVer, license: norm, repo: info.repository });
+      } else if (!anyAllowed) {
+        // None allowed, none blocked → review needed
+        if (subs.some((s) => review.has(s))) {
+          flagged.push({ pkg: pkgVer, license: norm, repo: info.repository });
+        } else {
+          unknown.push({ pkg: pkgVer, license: norm, repo: info.repository });
+        }
+      }
+      // else: at least one allowed → OK
       continue;
     }
-    if (review.has(norm)) {
+
+    // Single license or AND-compound: every sub must be allowed
+    if (subs.some((s) => block.has(s))) {
+      blocked.push({ pkg: pkgVer, license: norm, repo: info.repository });
+      continue;
+    }
+    if (subs.some((s) => review.has(s))) {
       flagged.push({ pkg: pkgVer, license: norm, repo: info.repository });
       continue;
     }
-    if (!allow.has(norm) && ![...allow].some(a => norm.startsWith(a.replace(/\*$/, '')))) {
+    if (!subs.every(isAllowed)) {
       unknown.push({ pkg: pkgVer, license: norm, repo: info.repository });
     }
   }

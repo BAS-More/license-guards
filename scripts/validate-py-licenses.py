@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""validate-py-licenses.py — pip-licenses output validator.
+"""validate-py-licenses.py — pip-licenses output validator with SPDX compound support.
 
 Usage: python validate-py-licenses.py <licenses.json> <config.toml>
-Exits 1 if any blocked license found, 2 if review-required.
+Exits 1 if any blocked license found, 2 if review-required or unknown.
 """
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -14,6 +15,20 @@ try:
     import tomllib  # py3.11+
 except ModuleNotFoundError:
     import tomli as tomllib  # type: ignore
+
+
+SPDX_OR = re.compile(r"\s+OR\s+", re.IGNORECASE)
+SPDX_AND = re.compile(r"\s+AND\s+", re.IGNORECASE)
+
+
+def split_spdx(expr: str) -> tuple[list[str], str]:
+    """Split a compound SPDX expression. Returns (subs, op) where op in {'OR','AND','SINGLE'}."""
+    expr = expr.strip().strip("()").strip()
+    if SPDX_OR.search(expr):
+        return [s.strip() for s in SPDX_OR.split(expr) if s.strip()], "OR"
+    if SPDX_AND.search(expr):
+        return [s.strip() for s in SPDX_AND.split(expr) if s.strip()], "AND"
+    return [expr], "SINGLE"
 
 
 def main() -> int:
@@ -31,23 +46,57 @@ def main() -> int:
     block = set(cfg.get("blocked", {}).get("licenses", []))
     review = set(cfg.get("review_required", {}).get("licenses", []))
 
+    def is_allowed(lic: str) -> bool:
+        return lic in allow
+
+    def is_blocked(lic: str) -> bool:
+        return lic in block
+
+    def is_review(lic: str) -> bool:
+        return lic in review
+
     blocked: list[dict[str, str]] = []
     flagged: list[dict[str, str]] = []
     unknown: list[dict[str, str]] = []
 
     for pkg in pkgs:
         license_str = (pkg.get("License") or "UNKNOWN").strip()
-        # pip-licenses sometimes returns "; " separated
-        for lic in [s.strip() for s in license_str.split(";")]:
-            if not lic:
-                continue
-            entry = {"name": pkg.get("Name", "?"), "version": pkg.get("Version", "?"), "license": lic}
-            if lic in block:
-                blocked.append(entry)
-            elif lic in review:
-                flagged.append(entry)
-            elif lic not in allow:
-                unknown.append(entry)
+        if license_str in {"UNKNOWN", ""}:
+            unknown.append({"name": pkg.get("Name", "?"), "version": pkg.get("Version", "?"), "license": "UNKNOWN"})
+            continue
+
+        # pip-licenses sometimes returns "; " separated for multi-license meta — treat each independently
+        for license_chunk in [s.strip() for s in license_str.split(";") if s.strip()]:
+            subs, op = split_spdx(license_chunk)
+            entry = {"name": pkg.get("Name", "?"), "version": pkg.get("Version", "?"), "license": license_chunk}
+
+            if op == "OR":
+                # OR: pass if ANY sub is allowed
+                if any(is_blocked(s) for s in subs) and not any(is_allowed(s) for s in subs):
+                    blocked.append(entry)
+                elif any(is_allowed(s) for s in subs):
+                    pass  # OK
+                elif any(is_review(s) for s in subs):
+                    flagged.append(entry)
+                else:
+                    unknown.append(entry)
+            elif op == "AND":
+                # AND: must satisfy all subs
+                if any(is_blocked(s) for s in subs):
+                    blocked.append(entry)
+                elif any(is_review(s) for s in subs):
+                    flagged.append(entry)
+                elif not all(is_allowed(s) for s in subs):
+                    unknown.append(entry)
+            else:
+                # SINGLE
+                lic = subs[0]
+                if is_blocked(lic):
+                    blocked.append(entry)
+                elif is_review(lic):
+                    flagged.append(entry)
+                elif not is_allowed(lic):
+                    unknown.append(entry)
 
     exit_code = 0
 
