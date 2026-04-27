@@ -17,13 +17,22 @@ except ModuleNotFoundError:
     import tomli as tomllib  # type: ignore
 
 
-SPDX_OR = re.compile(r"\s+OR\s+", re.IGNORECASE)
-SPDX_AND = re.compile(r"\s+AND\s+", re.IGNORECASE)
+# Per the SPDX spec, OR/AND are uppercase keywords. The previous
+# `re.IGNORECASE` flag false-matched the literal word " or " inside legitimate
+# license names like "GNU Library or Lesser General Public License (LGPL)",
+# splitting them into nonsense fragments.
+SPDX_OR = re.compile(r"\s+OR\s+")
+SPDX_AND = re.compile(r"\s+AND\s+")
 
 
 def split_spdx(expr: str) -> tuple[list[str], str]:
     """Split a compound SPDX expression. Returns (subs, op) where op in {'OR','AND','SINGLE'}."""
-    expr = expr.strip().strip("()").strip()
+    expr = expr.strip()
+    # Strip outer parens ONLY if they wrap the whole expression — don't use
+    # str.strip("()") because it chews trailing `)` off names like
+    # "GNU General Public License v2 (GPLv2)" and breaks exact-string lookup.
+    if expr.startswith("(") and expr.endswith(")"):
+        expr = expr[1:-1].strip()
     if SPDX_OR.search(expr):
         return [s.strip() for s in SPDX_OR.split(expr) if s.strip()], "OR"
     if SPDX_AND.search(expr):
