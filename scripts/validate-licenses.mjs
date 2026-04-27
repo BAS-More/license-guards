@@ -50,7 +50,10 @@ for (const [pkgVer, info] of Object.entries(lc)) {
   for (const lic of licenses) {
     const norm = String(lic).trim();
 
-    if (exceptions[pkgName] || exceptions[pkgVer]) continue;
+    // Skip the _comment key + per-package exemptions
+    if (pkgName === '_comment') continue;
+    if (exceptions[pkgName] && pkgName !== '_comment') continue;
+    if (exceptions[pkgVer] && pkgVer !== '_comment') continue;
 
     // Compound expression handling: if expression contains OR, it's allowed if ANY
     // sub-license is allowed. If expression contains only AND, all must be allowed.

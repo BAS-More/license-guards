@@ -17,7 +17,15 @@
     "PSF",
     "Zlib",
     "WTFPL",
-    "BlueOak-1.0.0"
+    "BlueOak-1.0.0",
+    "MPL-2.0",
+    "MPL-2.0+",
+    "EPL-2.0",
+    "BSD*",
+    "BSD-3-Clause-Clear",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016"
   ],
   "blocked": [
     "GPL-1.0",
@@ -39,9 +47,14 @@
   ],
   "review_required": [
     "LGPL-2.1",
+    "LGPL-2.1-only",
+    "LGPL-2.1-or-later",
     "LGPL-3.0",
-    "MPL-2.0",
-    "EPL-2.0",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "MPL-1.1",
+    "EPL-1.0",
+    "CDDL-1.0",
     "CDDL-1.1",
     "Custom",
     "UNLICENSED",
@@ -50,6 +63,8 @@
     "Other"
   ],
   "exceptions": {
-    "_comment": "Per-package overrides — package name + reason. Reviewed quarterly."
+    "_comment": "Per-package overrides — bypass license-bucket checks for specific deps. Format: pkg-name → reason.",
+    "buffers": "Custom URL license — actual is permissive (see http://github.com/substack/node-bufferlist). Used by node-tar, dev-only",
+    "readline": "BSD* (variant) — permissive BSD form; pkg metadata uses non-canonical SPDX"
   }
 }
