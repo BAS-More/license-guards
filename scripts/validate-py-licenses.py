@@ -54,7 +54,6 @@ def main() -> int:
     allow = set(cfg.get("allowed", {}).get("licenses", []))
     block = set(cfg.get("blocked", {}).get("licenses", []))
     review = set(cfg.get("review_required", {}).get("licenses", []))
-
     # Per-package exemptions — let a project explicitly accept a normally-
     # blocked license for a specific dependency without weakening the
     # license-string buckets for everything else. Each entry is the exact
@@ -82,16 +81,23 @@ def main() -> int:
     unknown: list[dict[str, str]] = []
     exempt_hits: list[dict[str, str]] = []
 
+    def normalize(s: str) -> str:
+        """pip-licenses sometimes returns the FULL license body instead of the
+        identifier. Take only the first non-empty line and strip trailing dots."""
+        first = next((ln.strip() for ln in s.splitlines() if ln.strip()), s)
+        return first.rstrip(".").strip()
+
     for pkg in pkgs:
         pkg_name = pkg.get("Name", "?")
-        license_str = (pkg.get("License") or "UNKNOWN").strip()
+        raw_license = (pkg.get("License") or "UNKNOWN").strip()
 
         # Per-package exemption: skip license-bucket checks entirely. The
         # package is recorded so reviewers see what was waved through.
         if pkg_name in exempt_pkgs:
-            exempt_hits.append({"name": pkg_name, "version": pkg.get("Version", "?"), "license": license_str})
+            exempt_hits.append({"name": pkg_name, "version": pkg.get("Version", "?"), "license": normalize(raw_license)})
             continue
 
+        license_str = normalize(raw_license)
         if license_str in {"UNKNOWN", ""}:
             unknown.append({"name": pkg_name, "version": pkg.get("Version", "?"), "license": "UNKNOWN"})
             continue

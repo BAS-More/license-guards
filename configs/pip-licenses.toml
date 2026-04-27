@@ -23,15 +23,23 @@ licenses = [
   "Unicode-DFS-2016",
   "MPL-2.0",
   "MPL-2.0+",
+  "EPL-2.0",
+  "Eclipse Public License 2.0 (EPL-2.0)",
   "HPND",
   "WTFPL",
   "BlueOak-1.0.0",
+  "MIT-CMU",
+  "CNRI-Python",
+  "CNRI-Python-GPL-Compatible",
   # Verbose names (pip-licenses legacy)
   "MIT License",
   "Apache Software License",
   "Apache License 2.0",
   "BSD License",
   "ISC License (ISCL)",
+  "3-Clause BSD License",
+  "BSD 3-Clause License",
+  "BSD 2-Clause License",
   "Python Software Foundation License",
   "The Unlicense (Unlicense)",
   "Mozilla Public License 2.0 (MPL 2.0)",
@@ -91,6 +99,30 @@ licenses = [
   "GNU Lesser General Public License v2 (LGPLv2)",
   "GNU Lesser General Public License v3 (LGPLv3)",
   "GNU Library or Lesser General Public License (LGPL)",
-  "Eclipse Public License 2.0 (EPL-2.0)",
   "Common Development and Distribution License 1.0 (CDDL-1.0)"
 ]
+
+# Per-package exemptions — narrower than license-level allowlist.
+# Validator surfaces these in cyan output every run for review visibility.
+
+[exempt_packages]
+names = [
+  "tld",
+  "docutils",
+  "caio",
+  "peewee",
+  "synthlang",
+  "tiktoken",
+  "pypdfium2",
+  "orjson",
+]
+
+[exempt_packages.reasons]
+tld = "Transitive via courlan (URL parsing). MPL-1.1 OR GPL-2.0-only OR LGPL-2.1+ — picking MPL-1.1 (file-level copyleft only, RuView doesn't modify)"
+docutils = "pip-licenses oversimplifies as 'GPL'; actual = BSD-2-Clause + Python-2.0 + GPL (small files only). Used by twine for README rendering — dev-only, never ships in product"
+caio = "Apache-2.0 per upstream pyproject.toml; pip-licenses can't read metadata. Async I/O lib"
+peewee = "MIT per upstream pyproject.toml; pip-licenses can't read metadata. ORM lib"
+synthlang = "Internal Avi-OS package; license set per repo policy"
+tiktoken = "MIT per upstream LICENSE file; pip-licenses returns full LICENSE body instead of identifier"
+pypdfium2 = "BSD-3-Clause + Apache-2.0 (dependency licenses); pip-licenses returns comma-separated list"
+orjson = "MPL-2.0 AND (Apache-2.0 OR MIT) — pick Apache-2.0 path; MPL-2.0 file-level copyleft is fine for library use. Validator's AND parser can't recurse into nested OR"
