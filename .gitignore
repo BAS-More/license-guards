@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Test artefacts
+licenses.json
+/tmp/
