@@ -55,6 +55,19 @@ def main() -> int:
     block = set(cfg.get("blocked", {}).get("licenses", []))
     review = set(cfg.get("review_required", {}).get("licenses", []))
 
+    # Per-package exemptions — let a project explicitly accept a normally-
+    # blocked license for a specific dependency without weakening the
+    # license-string buckets for everything else. Each entry is the exact
+    # `Name` field from pip-licenses output. Optional `reason` map lives
+    # alongside for documentation; the script only needs the names.
+    #
+    # Schema (in pip-licenses.toml):
+    #   [exempt_packages]
+    #   names = ["scapy", "some-other-pkg"]
+    #   [exempt_packages.reasons]
+    #   scapy = "GPLv2 accepted: pure-Python protocol-decoder; no static linking; not redistributed."
+    exempt_pkgs = set(cfg.get("exempt_packages", {}).get("names", []))
+
     def is_allowed(lic: str) -> bool:
         return lic in allow
 
@@ -67,17 +80,26 @@ def main() -> int:
     blocked: list[dict[str, str]] = []
     flagged: list[dict[str, str]] = []
     unknown: list[dict[str, str]] = []
+    exempt_hits: list[dict[str, str]] = []
 
     for pkg in pkgs:
+        pkg_name = pkg.get("Name", "?")
         license_str = (pkg.get("License") or "UNKNOWN").strip()
+
+        # Per-package exemption: skip license-bucket checks entirely. The
+        # package is recorded so reviewers see what was waved through.
+        if pkg_name in exempt_pkgs:
+            exempt_hits.append({"name": pkg_name, "version": pkg.get("Version", "?"), "license": license_str})
+            continue
+
         if license_str in {"UNKNOWN", ""}:
-            unknown.append({"name": pkg.get("Name", "?"), "version": pkg.get("Version", "?"), "license": "UNKNOWN"})
+            unknown.append({"name": pkg_name, "version": pkg.get("Version", "?"), "license": "UNKNOWN"})
             continue
 
         # pip-licenses sometimes returns "; " separated for multi-license meta — treat each independently
         for license_chunk in [s.strip() for s in license_str.split(";") if s.strip()]:
             subs, op = split_spdx(license_chunk)
-            entry = {"name": pkg.get("Name", "?"), "version": pkg.get("Version", "?"), "license": license_chunk}
+            entry = {"name": pkg_name, "version": pkg.get("Version", "?"), "license": license_chunk}
 
             if op == "OR":
                 # OR: pass if ANY sub is allowed
@@ -129,6 +151,15 @@ def main() -> int:
         print("Add to allowed/blocked/review_required in pip-licenses.toml.", file=sys.stderr)
         if exit_code == 0:
             exit_code = 2
+
+    # Surface exemptions in stderr so reviewers see them every run.
+    # Always informational — never affects exit_code.
+    if exempt_hits:
+        reasons = cfg.get("exempt_packages", {}).get("reasons", {})
+        print("\033[1;36m[license-guard] EXEMPT PACKAGES (per-project waiver):\033[0m", file=sys.stderr)
+        for e in exempt_hits:
+            why = reasons.get(e["name"], "no reason recorded")
+            print(f"  - {e['name']}=={e['version']}  [{e['license']}]  - {why}", file=sys.stderr)
 
     if exit_code == 0:
         print("\033[1;32m[license-guard] All Python deps OK ✓\033[0m")
