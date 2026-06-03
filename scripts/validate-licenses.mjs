@@ -26,9 +26,12 @@ const unknown = [];
 // Split SPDX compound expressions like "(MIT OR WTFPL)" or "Apache-2.0 AND BSD-3-Clause".
 // Returns array of individual licenses.
 function splitSpdx(expr) {
-  return String(expr)
-    .replace(/^\(|\)$/g, '')
-    .split(/\s+(?:OR|AND)\s+/i)
+  let str = String(expr).trim();
+  if (str.startsWith('(') && str.endsWith(')')) {
+    str = str.slice(1, -1).trim();
+  }
+  return str
+    .split(/\s+(?:OR|AND)\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -57,7 +60,7 @@ for (const [pkgVer, info] of Object.entries(lc)) {
 
     // Compound expression handling: if expression contains OR, it's allowed if ANY
     // sub-license is allowed. If expression contains only AND, all must be allowed.
-    const isCompoundOr = /\bOR\b/i.test(norm);
+    const isCompoundOr = /\bOR\b/.test(norm);
     const subs = splitSpdx(norm);
 
     if (isCompoundOr) {
