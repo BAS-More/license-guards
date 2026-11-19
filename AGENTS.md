@@ -16,7 +16,7 @@ Agents read this file automatically. Your job is to FIX the issue, not introduce
 
 ## Build / test / verify
 - Lint: none configured.
-- Test (Python): `python tests/test_split_spdx.py` and `python tests/test_exempt_packages.py` (standalone unittest).
+- Test (Python): `python scripts/test_split_spdx.py` and `python scripts/test_exempt_packages.py` (standalone unittest).
 - Node validators: verify via CLI, e.g. `node scripts/validate-licenses.mjs <licenses.json> <config.json>` (exit 0 = OK).
 
 A change is not done until the build passes and the full existing test suite passes.
